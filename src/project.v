@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Nikhil Doal
+ * Copyright (c) 2024 Nikhil-Doal
  * SPDX-License-Identifier: Apache-2.0
  */
 
