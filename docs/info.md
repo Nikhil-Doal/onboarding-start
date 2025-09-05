@@ -9,11 +9,11 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-Nikhil Doal, testing
+Nikhil Doal, testing sdfl jas kfl;djasfkldasjfklasjfdskjfakshf;lkashfjksksafsdhasjfhadskfhlja
 
 ## How to test
 
-test
+test sh fjds fsfhsdkjhsjadkfh aklfhdsjsak fafdf ashjdlfhdjs flasfh djashjakfhdaljfhdsjfkhasjkfhsajdkf hdskfljhdsfj hjafhaskljfhs jlfahdsjflas
 
 ## External hardware
 
