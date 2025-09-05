@@ -151,11 +151,159 @@ async def test_spi(dut):
 
 @cocotb.test()
 async def test_pwm_freq(dut):
-    # Write your test here
+    dut._log.info("Start PWM frequency test")
+    
+    # Set the clock period to 100 ns (10 MHz) since PWM takes in 10MHz and converts to 3kHz
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+    # Reset
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+
+    dut._log.info("Test project behavior")
+    dut._log.info(f"Enabling en_reg_out[0] and en_reg_pwm[0] with 50% duty cycle")
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
+
+    # Wait one cycle for PWM waveform to stabilize
+    # Since clk has period of 1 / 10 MHz = 100 ns and PWM should have period of 1 / 3 kHz = 333 us,
+    # we wait 3500 100 ns cycles = 350 us
+    await ClockCycles(dut.clk, 3500)
+
+    # Handle timeout cases
+    t_timeout_start = cocotb.utils.get_sim_time(units="ns")
+
+    while dut.uo_out == 0x01:
+        await ClockCycles(dut.clk, 1)
+        if (cocotb.utils.get_sim_time(units="ns") - t_timeout_start) > 7e5: # Wait roughly 2 cycles
+            raise cocotb.result.TestFailure("Timeout - PWM failed to toggle output signal")
+        
+    while dut.uo_out == 0x00:
+        await ClockCycles(dut.clk, 1)
+        if (cocotb.utils.get_sim_time(units="ns") - t_timeout_start) > 7e5: # Wait roughly 2 cycles
+            raise cocotb.result.TestFailure("Timeout - PWM failed to toggle output signal")
+        
+    # Measure time between two rising edges
+    t_rising_edge_1 = cocotb.utils.get_sim_time(units="ns")
+
+    while dut.uo_out == 0x01:
+        await ClockCycles(dut.clk, 1)
+    
+    while dut.uo_out == 0x00:
+        await ClockCycles(dut.clk, 1)
+
+    t_rising_edge_2 = cocotb.utils.get_sim_time(units="ns")
+
+
+    period = t_rising_edge_2 - t_rising_edge_1
+    # period measured in ns, so 1e9/period converts to Hz
+    frequency = 1e9/period
+    assert frequency >= 2970, f"uo_out[0] PWM frequency ({frequency: .2f} Hz) below tolerance threshold"
+    assert frequency <= 3030, f"uo_out[0] PWM frequency ({frequency: .2f} Hz) above tolerance threshold"
+
     dut._log.info("PWM Frequency test completed successfully")
 
 
 @cocotb.test()
 async def test_pwm_duty(dut):
-    # Write your test here
+    dut._log.info("Start PWM frequency test")
+    
+    # Set the clock period to 100 ns (10 MHz) since PWM takes in 10MHz and converts to 3kHz
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+    # Reset
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
+
+    dut._log.info("Test project behavior")
+
+    dut._log.info(f"Enabling en_reg_out[0] and en_reg_pwm[0]")
+    await send_spi_transaction(dut, 1, 0x00, 0x01)
+    await send_spi_transaction(dut, 1, 0x02, 0x01)
+
+    # Should get constant low signal because of 0% duty cycle
+    dut._log.info(f"Setting duty cycle to 0%")
+    await send_spi_transaction(dut, 1, 0x04, 0x00)
+
+    t_duty_cycle_0_start = cocotb.utils.get_sim_time(units="ns")
+
+    while dut.uo_out == 0x00:
+        await ClockCycles(dut.clk, 1)
+        if (dut.uo_out == 0x01):
+            raise cocotb.result.TestFailure(f"0% duty cycle - failed to output constant low signal")
+        if (cocotb.utils.get_sim_time(units="ns") - t_duty_cycle_0_start) > 7e5: # Wait roughly 2 cycles
+            break
+    
+    while dut.uo_out == 0x01:
+        raise cocotb.result.TestFailure(f"0% duty cycle - failed to output constant low signal")
+
+    # Should get constant high signal because of 100% duty cycle
+    dut._log.info(f"Setting duty cycle to 100%")
+    await send_spi_transaction(dut, 1, 0x04, 0xFF)
+
+    t_duty_cycle_1_start = cocotb.utils.get_sim_time(units="ns")
+
+    while dut.uo_out == 0x01:
+        await ClockCycles(dut.clk, 1)
+        if (dut.uo_out == 0x00):
+            raise cocotb.result.TestFailure(f"100% duty cycle - failed to output constant high signal")
+        if (cocotb.utils.get_sim_time(units="ns") - t_duty_cycle_1_start) > 7e5: # Wait roughly 2 cycles
+            break
+
+    while dut.uo_out == 0x00:
+        raise cocotb.result.TestFailure(f"100% duty cycle - failed to output constant high signal")
+    
+    dut._log.info(f"Setting duty cycle to 50%")
+    await send_spi_transaction(dut, 1, 0x04, 0x80)
+
+    # Handle timeout cases
+    t_timeout_start = cocotb.utils.get_sim_time(units="ns")
+
+    while dut.uo_out == 0x01:
+        await ClockCycles(dut.clk, 1)
+        if (cocotb.utils.get_sim_time(units="ns") - t_timeout_start) > 7e5: # Wait roughly 2 cycles
+            raise cocotb.result.TestFailure("Timeout - PWM failed to toggle output signal")
+        
+    while dut.uo_out == 0x00:
+        await ClockCycles(dut.clk, 1)
+        if (cocotb.utils.get_sim_time(units="ns") - t_timeout_start) > 7e5: # Wait roughly 2 cycles
+            raise cocotb.result.TestFailure("Timeout - PWM failed to toggle output signal")
+    
+    t_rising_edge = cocotb.utils.get_sim_time(units="ns")
+
+    while dut.uo_out == 0x01:
+        await ClockCycles(dut.clk, 1)
+    
+    t_falling_edge = cocotb.utils.get_sim_time(units="ns")
+
+    high_time = t_falling_edge - t_rising_edge
+    duty_cycle = (high_time/3.3e5) * 100
+
+    # +- 1% tolerance
+    desired_duty_cycle = (0x80/0xFF)*100
+    lower_threshold = desired_duty_cycle*0.99
+    upper_threshold = desired_duty_cycle*1.01
+
+    assert duty_cycle >= lower_threshold, "Duty cycle ({duty_cycle}%) below tolerance threshold"
+    assert duty_cycle <= upper_threshold, "Duty cycle ({duty_cycle}%) above tolerance threshold"
+
     dut._log.info("PWM Duty Cycle test completed successfully")
