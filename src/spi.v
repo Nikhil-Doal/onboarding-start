@@ -27,14 +27,12 @@ module spi_peripheral (
     reg SCLK_sync1, SCLK_sync2, SCLK_sync3;
     
     // Edge detection
-    wire nCS_negedge = (nCS_sync2 == 1'b0) && (nCS_sync1 == 1'b1);
     wire nCS_posedge = (nCS_sync2 == 1'b1) && (nCS_sync1 == 1'b0);
     wire SCLK_posedge = (SCLK_sync2 == 1'b1) && (SCLK_sync3 == 1'b0);
     
     // SPI state machine
     reg [15:0] shift_register;  // Holds incoming bits: [R/W bit][7-bit addr][8-bit data]
-    reg [4:0] bit_counter;      // Counts bits received (0-15)
-    reg transaction_active;
+    reg [4:0] bit_counter;      // Counts bits received (0-16)
     
     // Transaction validation and handshaking
     reg transaction_ready;
@@ -76,30 +74,32 @@ module spi_peripheral (
         if (!rst_n) begin
             shift_register <= 16'h0000;
             bit_counter <= 5'd0;
-            transaction_active <= 1'b0;
             transaction_ready <= 1'b0;
-        end else if (nCS_sync2 == 1'b0) begin
-            // Transaction is active when CS is low
-            transaction_active <= 1'b1;
-            
-            // Sample data on SCLK rising edge (Mode 0)
-            if (SCLK_posedge) begin
-                // Shift in the bit
-                shift_register <= {shift_register[14:0], COPI_sync2};
-                bit_counter <= bit_counter + 1'b1;
-            end
         end else begin
-            // When nCS goes high (transaction ends)
-            if (nCS_posedge && transaction_active) begin
-                // Check if we received exactly 16 bits
-                if (bit_counter == 5'd16) begin
-                    transaction_ready <= 1'b1;
+            if (nCS_sync2 == 1'b0) begin
+                // Transaction is active when CS is low
+                
+                // Sample data on SCLK rising edge (Mode 0)
+                if (SCLK_posedge) begin
+                    // Shift in the bit
+                    shift_register <= {shift_register[14:0], COPI_sync2};
+                    bit_counter <= bit_counter + 1'b1;
                 end
-                transaction_active <= 1'b0;
-                bit_counter <= 5'd0;
-            end else if (transaction_processed) begin
-                // Clear ready flag once processed
-                transaction_ready <= 1'b0;
+            end else begin
+                // When nCS is high (idle or transaction just ended)
+                if (nCS_posedge) begin
+                    // Check if we received exactly 16 bits
+                    if (bit_counter == 5'd16) begin
+                        transaction_ready <= 1'b1;
+                    end else begin
+                        // Invalid transaction, reset counter
+                        bit_counter <= 5'd0;
+                    end
+                end else if (transaction_processed) begin
+                    // Clear ready flag and reset counter once processed
+                    transaction_ready <= 1'b0;
+                    bit_counter <= 5'd0;
+                end
             end
         end
     end
