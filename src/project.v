@@ -16,37 +16,48 @@ module tt_um_uwasic_onboarding_nikhil_doal(
     input  wire       rst_n     // reset_n - low to reset
 );
 
-  // Add this inside the module block
-  assign uio_oe = 8'hFF; // Set all IOs to output
+    // Set all bidirectional IOs to output mode
+    assign uio_oe = 8'hFF;
 
-  // Create wires to refer to the values of the registers
-  wire [7:0] en_reg_out_7_0;
-  wire [7:0] en_reg_out_15_8;
-  wire [7:0] en_reg_pwm_7_0;
-  wire [7:0] en_reg_pwm_15_8;
-  wire [7:0] pwm_duty_cycle;
+    // Map SPI signals from ui_in
+    wire SCLK = ui_in[0];
+    wire COPI = ui_in[1];
+    wire nCS  = ui_in[2];
 
-  // Instantiate the PWM module
-  pwm_peripheral pwm_peripheral_inst (
-  .clk(clk),
-  .rst_n(rst_n),
-  .en_reg_out_7_0(en_reg_out_7_0),
-  .en_reg_out_15_8(en_reg_out_15_8),
-  .en_reg_pwm_7_0(en_reg_pwm_7_0),
-  .en_reg_pwm_15_8(en_reg_pwm_15_8),
-  .pwm_duty_cycle(pwm_duty_cycle),
-  .out({uio_out, uo_out})
-  );
-  // Add uio_in and ui_in[7:3] to the list of unused signals:
-  wire _unused = &{ena, ui_in[7:3], uio_in, 1'b0};
+    // Wires to connect SPI module outputs to PWM module inputs
+    wire [7:0] en_reg_out_7_0;
+    wire [7:0] en_reg_out_15_8;
+    wire [7:0] en_reg_pwm_7_0;
+    wire [7:0] en_reg_pwm_15_8;
+    wire [7:0] pwm_duty_cycle;
 
+    // Instantiate the SPI peripheral module
+    spi_peripheral spi_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .nCS(nCS),
+        .SCLK(SCLK),
+        .COPI(COPI),
+        .en_reg_out_7_0(en_reg_out_7_0),
+        .en_reg_out_15_8(en_reg_out_15_8),
+        .en_reg_pwm_7_0(en_reg_pwm_7_0),
+        .en_reg_pwm_15_8(en_reg_pwm_15_8),
+        .pwm_duty_cycle(pwm_duty_cycle)
+    );
 
-  // All output pins must be assigned. If not used, assign to 0.
-  assign uo_out  = ui_in + uio_in;  // Example: ou_out is the sum of ui_in and uio_in
-  assign uio_out = 0;
-  assign uio_oe  = 0;
+    // Instantiate the PWM peripheral module
+    pwm_peripheral pwm_inst (
+        .clk(clk),
+        .rst_n(rst_n),
+        .en_reg_out_7_0(en_reg_out_7_0),
+        .en_reg_out_15_8(en_reg_out_15_8),
+        .en_reg_pwm_7_0(en_reg_pwm_7_0),
+        .en_reg_pwm_15_8(en_reg_pwm_15_8),
+        .pwm_duty_cycle(pwm_duty_cycle),
+        .out({uio_out, uo_out})
+    );
 
-  // List all unused inputs to prevent warnings
-  wire _unused = &{ena, clk, rst_n, 1'b0};
+    // List all unused inputs to prevent warnings
+    wire _unused = &{ena, ui_in[7:3], uio_in, 1'b0};
 
 endmodule
